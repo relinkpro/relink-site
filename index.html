@@ -1,11 +1,14 @@
-<!doctype html>
-<html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>ReLink — Circular Materials Marketplace</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- Mapbox -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet" />
+  <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+  <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" rel="stylesheet" />
 </head>
 <body class="bg-slate-950 text-slate-100">
   <!-- Top Bar -->
@@ -113,13 +116,19 @@
         <div class="text-sm font-semibold">Create Listing</div>
         <div class="grid gap-3 md:grid-cols-2">
           <input id="lTitle" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Title (e.g., High-end kitchen, excellent condition)" />
-          <input id="lPrice" type="number" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Price (€)" />
-          <input id="lCategory" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Category (kitchen/timber/pallets)" />
-          <input id="lLocation" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Location (county/city)" />
-          <input id="lCondition" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Condition (new/used/good)" />
-          <input id="lDesc" <input id="lImage" type="file" accept="image/*"
-  class="md:col-span-2 rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" /> class="md:col-span-2 rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Description (dimensions, collection window, notes)" />
-        </div>
+  <input id="lPrice" type="number" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Price (€)" />
+  <input id="lCategory" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Category (kitchen/timber/pallets)" />
+  <input id="lCondition" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Condition (new/used/good)" />
+
+  <div class="md:col-span-2">
+    <div class="text-xs text-slate-400 mb-2">Pickup address</div>
+    <div id="pickupGeocoder"></div>
+  </div>
+
+  <input id="lDesc" class="md:col-span-2 rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Description (dimensions, collection window, notes)" />
+
+  <input id="lImage" type="file" accept="image/*"
+    class="md:col-span-2 rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" />
         <button class="w-fit rounded-2xl bg-emerald-500 px-5 py-3 text-sm font-medium text-slate-950 hover:bg-emerald-400" onclick="createListing()">Publish listing</button>
         <div id="sellerMsg" class="text-sm text-slate-400"></div>
       </div>
@@ -190,278 +199,291 @@
       </div>
     </div>
   </footer>
-
 <script>
-  document.getElementById('year').textContent = new Date().getFullYear();
+/* ================================
+   CORE INITIALISATION
+================================ */
 
-    const SUPABASE_URL = "https://pxqbathiuqymdwupvsqg.supabase.co";
-  const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4cWJhdGhpdXF5bWR3dXB2c3FnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMjEzMjEsImV4cCI6MjA4NzY5NzMyMX0.zmZDANajCutj7WT7R5Gdino6EkVP9fIuVDzq855e1oE";
-  const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-  let desiredRole = "buyer";
-  let currentRole = null;
-  let currentUser = null;
+document.getElementById('year').textContent = new Date().getFullYear();
 
-  // Views
-  function showView(name) {
-    for (const id of ["market","dashboard","how"]) {
-      document.getElementById("view-" + id).classList.add("hidden");
-    }
-    document.getElementById("view-" + name).classList.remove("hidden");
+/* --- MAPBOX TOKEN --- */
+mapboxgl.accessToken = "pk.eyJ1IjoicmVsaW5rMjAyNiIsImEiOiJjbW05Y3ZtZXcwMWVhMnFxd3oycHZ5b3BpIn0.Y4EUfusuGBZIqsEVP34J6A";
+
+/* --- SUPABASE --- */
+const SUPABASE_URL = "https://pxqbathiuqymdwupvsqg.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB4cWJhdGhpdXF5bWR3dXB2c3FnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIxMjEzMjEsImV4cCI6MjA4NzY5NzMyMX0.zmZDANajCutj7WT7R5Gdino6EkVP9fIuVDzq855e1oE"
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+/* ================================
+   GLOBAL STATE
+================================ */
+
+let desiredRole = "buyer";
+let currentRole = null;
+let currentUser = null;
+let pickupCoords = null;
+
+/* ================================
+   VIEW SWITCHING
+================================ */
+
+function showView(name) {
+  ["market","dashboard","how"].forEach(v =>
+    document.getElementById("view-" + v).classList.add("hidden")
+  );
+
+  document.getElementById("view-" + name).classList.remove("hidden");
+
+  if (name === "dashboard") {
+    setTimeout(initPickupGeocoder, 100);
   }
-  showView("market");
+}
 
-  // Auth modal
-  function openAuth(role) {
-    desiredRole = role;
-    document.getElementById("authRoleText").textContent = `Role: ${role.toUpperCase()}`;
-    document.getElementById("authMsg").textContent = "";
-    document.getElementById("authModal").classList.remove("hidden");
-    document.getElementById("authModal").classList.add("flex");
+showView("market");
+
+/* ================================
+   MAPBOX GEOCODER
+================================ */
+
+function initPickupGeocoder() {
+  const el = document.getElementById("pickupGeocoder");
+  if (!el) return;
+  if (el.dataset.inited === "1") return;
+
+  el.dataset.inited = "1";
+
+  const geocoder = new MapboxGeocoder({
+    accessToken: mapboxgl.accessToken,
+    countries: "ie",
+    types: "address",
+    placeholder: "Start typing address or Eircode…",
+    mapboxgl: mapboxgl
+  });
+
+  geocoder.addTo("#pickupGeocoder");
+
+  geocoder.on("result", (e) => {
+    pickupCoords = e.result.geometry.coordinates;
+  });
+}
+
+/* ================================
+   AUTH
+================================ */
+
+document.getElementById("btnLogin").addEventListener("click", () => openAuth("buyer"));
+document.getElementById("btnLogout").addEventListener("click", logout);
+
+function openAuth(role) {
+  desiredRole = role;
+  document.getElementById("authRoleText").textContent = `Role: ${role.toUpperCase()}`;
+  document.getElementById("authMsg").textContent = "";
+  document.getElementById("authModal").classList.remove("hidden");
+  document.getElementById("authModal").classList.add("flex");
+}
+
+function closeAuth() {
+  document.getElementById("authModal").classList.add("hidden");
+  document.getElementById("authModal").classList.remove("flex");
+}
+
+async function signUpOrIn() {
+  const email = document.getElementById("authEmail").value.trim();
+  const pass = document.getElementById("authPass").value;
+  const fullName = document.getElementById("authName").value.trim();
+
+  if (!email || !pass) {
+    document.getElementById("authMsg").textContent = "Email and password required.";
+    return;
   }
-  function closeAuth() {
-    document.getElementById("authModal").classList.add("hidden");
-    document.getElementById("authModal").classList.remove("flex");
-  }
-  document.getElementById("btnLogin").addEventListener("click", () => openAuth("buyer"));
-  document.getElementById("btnLogout").addEventListener("click", logout);
 
-  async function signUpOrIn() {
-    const fullName = document.getElementById("authName").value.trim();
-    const email = document.getElementById("authEmail").value.trim();
-    const pass = document.getElementById("authPass").value;
+  let { error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
 
-    if (!email || !pass) {
-      document.getElementById("authMsg").textContent = "Email and password are required.";
+  if (error) {
+    const signup = await supabaseClient.auth.signUp({ email, password: pass });
+    if (signup.error) {
+      document.getElementById("authMsg").textContent = signup.error.message;
       return;
     }
+  }
 
-    // Try sign in first
-    let { data, error } = await supabaseClient.auth.signInWithPassword({ email, password: pass });
-    if (error) {
-      // If sign-in fails, create account
-      const signup = await supabaseClient.auth.signUp({ email, password: pass });
-      if (signup.error) {
-        document.getElementById("authMsg").textContent = signup.error.message;
-        return;
-      }
-      data = signup.data;
-    }
+  const { data } = await supabaseClient.auth.getUser();
+  currentUser = data.user;
 
-    // Ensure profile exists
-    const user = (await supabaseClient.auth.getUser()).data.user;
-    if (!user) {
-      document.getElementById("authMsg").textContent = "Login succeeded but user not found.";
-      return;
-    }
+  await supabaseClient
+    .from("profiles")
+    .upsert({ id: currentUser.id, role: desiredRole, full_name: fullName || null }, { onConflict: "id" });
 
-    // Upsert profile (first time)
-    const { data: prof, error: profErr } = await supabaseClient
+  currentRole = desiredRole;
+
+  closeAuth();
+  await refreshUI();
+}
+
+async function logout() {
+  await supabaseClient.auth.signOut();
+  currentUser = null;
+  currentRole = null;
+  await refreshUI();
+}
+
+/* ================================
+   UI REFRESH
+================================ */
+
+async function refreshUI() {
+  const { data } = await supabaseClient.auth.getUser();
+  currentUser = data.user || null;
+
+  document.getElementById("btnLogin").classList.toggle("hidden", !!currentUser);
+  document.getElementById("btnLogout").classList.toggle("hidden", !currentUser);
+
+  document.getElementById("sellerPanel").classList.add("hidden");
+  document.getElementById("buyerPanel").classList.add("hidden");
+  document.getElementById("driverPanel").classList.add("hidden");
+
+  if (currentUser) {
+    const { data: prof } = await supabaseClient
       .from("profiles")
-      .upsert({ id: user.id, role: desiredRole, full_name: fullName || null }, { onConflict: "id" })
-      .select()
-      .single();
+      .select("*")
+      .eq("id", currentUser.id)
+      .maybeSingle();
 
-    if (profErr) {
-      document.getElementById("authMsg").textContent = profErr.message;
-      return;
-    }
+    currentRole = prof?.role || null;
 
-    currentUser = user;
-    currentRole = prof.role;
+    if (currentRole === "seller")
+      document.getElementById("sellerPanel").classList.remove("hidden");
 
-    closeAuth();
-    await refreshUI();
+    if (currentRole === "buyer")
+      document.getElementById("buyerPanel").classList.remove("hidden");
+
+    if (currentRole === "driver")
+      document.getElementById("driverPanel").classList.remove("hidden");
   }
 
-  async function logout() {
-    await supabaseClient.auth.signOut();
-    currentUser = null;
-    currentRole = null;
-    await refreshUI();
-  }
+  await loadListings();
+}
 
-  async function refreshUI() {
-    const { data } = await supabaseClient.auth.getUser();
-    currentUser = data.user || null;
-
-    document.getElementById("btnLogin").classList.toggle("hidden", !!currentUser);
-    document.getElementById("btnLogout").classList.toggle("hidden", !currentUser);
-
-    document.getElementById("btnNewListing").classList.toggle("hidden", currentRole !== "seller");
-
-    // dashboard panels
-    document.getElementById("sellerPanel").classList.add("hidden");
-    document.getElementById("buyerPanel").classList.add("hidden");
-    document.getElementById("driverPanel").classList.add("hidden");
-    document.getElementById("roleBadge").classList.add("hidden");
-    document.getElementById("dashSub").textContent = currentUser ? "You're signed in. Manage your activity here." : "Sign in to access your role portal.";
-
-    if (currentUser) {
-      // load profile
-      const { data: prof } = await supabaseClient.from("profiles").select("*").eq("id", currentUser.id).maybeSingle();
-      currentRole = prof?.role || null;
-
-      if (currentRole) {
-        document.getElementById("roleBadge").classList.remove("hidden");
-        document.getElementById("roleBadge").textContent = currentRole.toUpperCase();
-      }
-
-      if (currentRole === "seller") document.getElementById("sellerPanel").classList.remove("hidden");
-      if (currentRole === "buyer") document.getElementById("buyerPanel").classList.remove("hidden");
-      if (currentRole === "driver") document.getElementById("driverPanel").classList.remove("hidden");
-    }
-
-    await loadListings();
-  }
-
-  async function loadListings() {
-    const cat = document.getElementById("fCategory").value.trim().toLowerCase();
-    const loc = document.getElementById("fLocation").value.trim().toLowerCase();
-
-    let q = supabaseClient.from("listings").select("*").eq("status", "live").order("created_at", { ascending: false });
-
-    if (cat) q = q.ilike("category", `%${cat}%`);
-    if (loc) q = q.ilike("location", `%${loc}%`);
-
-    const { data, error } = await q;
-    const grid = document.getElementById("listingGrid");
-    grid.innerHTML = "";
-
-    if (error) {
-      grid.innerHTML = `<div class="text-sm text-red-300">${error.message}</div>`;
-      return;
-    }
-
-    if (!data || data.length === 0) {
-      grid.innerHTML = `<div class="text-sm text-slate-400">No listings yet. Start with a few seller listings to kickstart supply.</div>`;
-      return;
-    }
-
-    for (const item of data) {
-      const card = document.createElement("div");
-      card.className = "rounded-3xl border border-white/10 bg-white/5 p-5";
-      card.innerHTML = `${item.image_url
-  ? `<img src="${escapeHtml(item.image_url)}" class="h-32 w-full rounded-2xl object-cover ring-1 ring-white/10" alt="Listing image" />`
-  : `<div class="h-32 rounded-2xl bg-slate-900/60 ring-1 ring-white/10 flex items-center justify-center text-xs text-slate-500">No image</div>`
-}        <div class="mt-3 font-semibold">${escapeHtml(item.title)}</div>
-        <div class="mt-1 text-sm text-slate-400">${escapeHtml(item.location || "Ireland")} • ${escapeHtml(item.category || "materials")}</div>
-        <div class="mt-3 flex items-center justify-between">
-          <div class="text-sm"><span class="text-slate-400">Price:</span> <b>€${item.price_eur ?? "—"}</b></div>
-          <button class="rounded-2xl bg-white/10 px-4 py-2 text-sm hover:bg-white/15" onclick="requestPurchase(${item.id})">Request</button>
-        </div>
-      `;
-      grid.appendChild(card);
-    }
-  }
+/* ================================
+   CREATE LISTING
+================================ */
 
 async function createListing() {
+
   if (!currentUser || currentRole !== "seller") {
-    document.getElementById("sellerMsg").textContent = "You must be signed in as a seller.";
+    document.getElementById("sellerMsg").textContent = "Seller account required.";
+    return;
+  }
+
+  if (!pickupCoords) {
+    document.getElementById("sellerMsg").textContent = "Select pickup address.";
     return;
   }
 
   const fileInput = document.getElementById("lImage");
   const file = fileInput?.files?.[0] || null;
-
   let image_url = null;
 
-  // 1) Upload image (optional)
   if (file) {
     const ext = file.name.split(".").pop();
     const fileName = `${currentUser.id}/${Date.now()}.${ext}`;
 
-    const { error: upErr } = await supabaseClient
-      .storage
+    const { error } = await supabaseClient.storage
       .from("listing-images")
       .upload(fileName, file, { upsert: true });
 
-    if (upErr) {
-      document.getElementById("sellerMsg").textContent = "Image upload failed: " + upErr.message;
+    if (error) {
+      document.getElementById("sellerMsg").textContent = error.message;
       return;
     }
 
-    const { data: pub } = supabaseClient
-      .storage
+    const { data } = supabaseClient.storage
       .from("listing-images")
       .getPublicUrl(fileName);
 
-    image_url = pub?.publicUrl || null;
+    image_url = data.publicUrl;
   }
 
-  // 2) Insert listing
   const payload = {
     seller_id: currentUser.id,
     title: document.getElementById("lTitle").value.trim(),
     description: document.getElementById("lDesc").value.trim(),
     category: document.getElementById("lCategory").value.trim(),
     condition: document.getElementById("lCondition").value.trim(),
-    location: document.getElementById("lLocation").value.trim(),
     price_eur: Number(document.getElementById("lPrice").value || 0),
     status: "live",
-    image_url
+    image_url,
+    pickup_lng: pickupCoords[0],
+    pickup_lat: pickupCoords[1]
   };
-
-  if (!payload.title) {
-    document.getElementById("sellerMsg").textContent = "Title is required.";
-    return;
-  }
 
   const { error } = await supabaseClient.from("listings").insert(payload);
 
-  document.getElementById("sellerMsg").textContent = error ? error.message : "Listing published.";
+  document.getElementById("sellerMsg").textContent =
+    error ? error.message : "Listing published.";
 
   if (!error) {
-    ["lTitle","lDesc","lCategory","lCondition","lLocation","lPrice"].forEach(id => document.getElementById(id).value = "");
+    ["lTitle","lDesc","lCategory","lCondition","lPrice"]
+      .forEach(id => document.getElementById(id).value = "");
     if (fileInput) fileInput.value = "";
+    pickupCoords = null;
     await loadListings();
     showView("market");
   }
 }
-  async function requestPurchase(listingId) {
-    if (!currentUser) {
-      openAuth("buyer");
-      return;
-    }
-    // ensure buyer
-    const { data: prof } = await supabaseClient.from("profiles").select("*").eq("id", currentUser.id).maybeSingle();
-    if (prof?.role !== "buyer") {
-      alert("Only buyer accounts can request purchases.");
-      return;
-    }
-    const note = prompt("Add a note for the seller (optional):") || "";
-    const { error } = await supabaseClient.from("requests").insert({ buyer_id: currentUser.id, listing_id: listingId, note });
-    alert(error ? error.message : "Request submitted. We'll coordinate next steps.");
+
+/* ================================
+   LOAD LISTINGS
+================================ */
+
+async function loadListings() {
+
+  const { data, error } = await supabaseClient
+    .from("listings")
+    .select("*")
+    .eq("status", "live")
+    .order("created_at", { ascending: false });
+
+  const grid = document.getElementById("listingGrid");
+  grid.innerHTML = "";
+
+  if (error) {
+    grid.innerHTML = error.message;
+    return;
   }
 
-  async function saveBuyerAlert() {
-    const msg = document.getElementById("aiRequestMsg");
-    if (!currentUser) {
-      msg.textContent = "Please sign in as a buyer to save a request.";
-      openAuth("buyer");
-      return;
-    }
-    msg.textContent = "Saved. (v1: alerts can be manual; later automated notifications.)";
+  if (!data.length) {
+    grid.innerHTML = "No listings yet.";
+    return;
   }
 
-  function escapeHtml(str) {
-    return String(str ?? "")
-      .replaceAll("&","&amp;")
-      .replaceAll("<","&lt;")
-      .replaceAll(">","&gt;")
-      .replaceAll('"',"&quot;")
-      .replaceAll("'","&#039;");
-  }
+  data.forEach(item => {
+    const card = document.createElement("div");
+    card.className = "rounded-3xl border border-white/10 bg-white/5 p-5";
 
-  // Init session
-  (async () => {
-    const { data } = await supabaseClient.auth.getUser();
-    currentUser = data.user || null;
-    if (currentUser) {
-      const { data: prof } = await supabaseClient.from("profiles").select("*").eq("id", currentUser.id).maybeSingle();
-      currentRole = prof?.role || null;
-    }
-    await refreshUI();
-  })();
+    card.innerHTML = `
+      ${item.image_url
+        ? `<img src="${item.image_url}" class="h-32 w-full rounded-2xl object-cover" />`
+        : `<div class="h-32 bg-slate-900/60 rounded-2xl flex items-center justify-center text-xs text-slate-500">No image</div>`
+      }
+      <div class="mt-3 font-semibold">${item.title}</div>
+      <div class="mt-1 text-sm text-slate-400">€${item.price_eur}</div>
+    `;
+
+    grid.appendChild(card);
+  });
+}
+
+/* ================================
+   INIT
+================================ */
+
+(async () => {
+  const { data } = await supabaseClient.auth.getUser();
+  currentUser = data.user || null;
+  await refreshUI();
+})();
 </script>
+
 </body>
 </html>
