@@ -9,6 +9,24 @@
   <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
   <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
   <link href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" rel="stylesheet" />
+  <style>
+    .mapboxgl-ctrl-geocoder {
+      width: 100% !important;
+      max-width: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+    }
+
+    .mapboxgl-ctrl-geocoder input {
+      background: transparent !important;
+      color: white !important;
+      padding: 12px !important;
+    }
+
+    .mapboxgl-ctrl-geocoder--icon {
+      filter: invert(1);
+    }
+  </style>
 </head>
 <body class="bg-slate-950 text-slate-100">
   <!-- Top Bar -->
@@ -120,11 +138,10 @@
   <input id="lCategory" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Category (kitchen/timber/pallets)" />
   <input id="lCondition" class="rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Condition (new/used/good)" />
 
-  <div class="md:col-span-2">
-    <div class="text-xs text-slate-400 mb-2">Pickup address</div>
-    <div id="pickupGeocoder"></div>
-  </div>
-
+<div class="md:col-span-2">
+  <div class="text-xs text-slate-400 mb-2">Pickup address</div>
+  <div id="pickupGeocoder" class="rounded-xl bg-slate-900/60 ring-1 ring-white/10 p-2"></div>
+</div>
   <input id="lDesc" class="md:col-span-2 rounded-xl bg-slate-900/60 p-3 text-sm outline-none ring-1 ring-white/10 focus:ring-emerald-400/40" placeholder="Description (dimensions, collection window, notes)" />
 
   <input id="lImage" type="file" accept="image/*"
@@ -490,4 +507,5 @@ async function loadListings() {
 
 </body>
 </html>
+
 
