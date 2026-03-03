@@ -252,13 +252,16 @@ function initPickupGeocoder() {
 
   el.dataset.inited = "1";
 
-  const geocoder = new MapboxGeocoder({
-    accessToken: mapboxgl.accessToken,
-    countries: "ie",
-    types: "address",
-    placeholder: "Start typing address or Eircode…",
-    mapboxgl: mapboxgl
-  });
+  const pickupGeocoder = new MapboxGeocoder({
+  accessToken: mapboxgl.accessToken,
+  countries: "ie",
+  // IMPORTANT: allow postcode too (Eircode)
+  types: "postcode,address,place",
+  placeholder: "Start typing address or Eircode…",
+  autocomplete: true,
+  limit: 5,
+  mapboxgl: mapboxgl
+});
 
   geocoder.addTo("#pickupGeocoder");
 
@@ -487,3 +490,4 @@ async function loadListings() {
 
 </body>
 </html>
+
